@@ -26,7 +26,10 @@ with open(file_path, "r") as file:
 # FlashAttention in scGPT requires CUDA + FP16; CPU will raise in scGPTForAnnotation.
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-#TO DO: Early stopping will be added to training code
+
+
+
+# Bu kısman dokunma çünkü seninle ilgi hiçbir şeyi yok. Eski paperdan kalma, burayı da hiç kullanmıyoruz.
 class TypeTrainer:
     def __init__(self, model: Union[Type12, Type3], optimizer: Optimizer, t_input: TypeInput):
         self.model = model
@@ -100,29 +103,8 @@ class TypeTrainer:
         return metrics, y_test_preds.cpu().numpy(), y_test_true.cpu().numpy()
     
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+###################################################################################################
+#############
 
 
 ###################################################################################################
@@ -149,6 +131,11 @@ class Type4Trainer:
 
         epoch_times, epoch_ct, best_w_f1 = [], 0, 0
 
+        self.best_test_metrics = None
+        self.best_epoch = -1
+        self.best_y_test_preds = None
+        self.best_y_test_true = None
+
         for epoch in t:
             start_time = time.time()
             metrics = {}
@@ -169,6 +156,14 @@ class Type4Trainer:
             train_acc,test_acc,test_f1, valid_acc = metrics["train"]["acc"], metrics["test"]["acc"], metrics["test"]["macro"], metrics["valid"]["acc"] 
             t.set_description(f"Loss: {e_loss:.4f}, Test Acc: {100*test_acc:.3f},Train Acc: {100*train_acc:.3f},Test Macro F1: {100*test_f1:.3f}, Valid Acc: {100*valid_acc:.3f}")
             #best_valid_acc, best_valid_model = es(valid_acc, self.model, epoch)
+
+            if self.best_test_metrics is None or test_acc > self.best_test_metrics["acc"]:
+                self.best_test_metrics = dict(metrics["test"])
+                self.best_epoch = epoch
+                self.best_y_test_preds = self.y_test_preds.copy()
+                self.best_y_test_true = self.y_test_true.copy()
+
+            print(f"Epoch {epoch}: Test Acc: {100*test_acc:.3f} | Best Test Acc: {100*self.best_test_metrics['acc']:.3f} (epoch {self.best_epoch})")
       
         
             end_time = time.time()
@@ -179,6 +174,8 @@ class Type4Trainer:
             #   break
         
         self.avg_epoch_time = sum(epoch_times) / epoch_ct
+        metrics["best_test"] = self.best_test_metrics
+        metrics["best_test_epoch"] = self.best_epoch
         self.metrics= metrics
       
         
@@ -387,53 +384,10 @@ class Type4Trainer:
 
     
     
-    # This is the evaluation function and do not update the cls tokens
-    """
-    def evaluate_3(self, data_portion:int):
-        with torch.no_grad():
-            y_pred, y_true = [], []
-            self.model.eval()
-            
-            # This if-else statement is crucial to set and not to miss the indexes of each partition
-            if data_portion==0:
-                 id=0
-            elif data_portion==1:
-                id= len(self.input.train_ids) # self.input.train_ids
-            elif data_portion==2:
-                id=  len(self.input.train_ids)+ len(self.input.valid_ids)
-            
-            
-            if self.cls_update:
-                 temp_cls= self.input.x.clone()  
-            time_counter=0
-            for batch_data in tqdm(self.input.loaders[data_portion],leave=False):
-                
-               
-                input_gene_ids = batch_data["gene_ids"].to(device)
-                input_values = batch_data["values"].to(device)
-                celltype_labels = batch_data["celltype_labels"].to(device)
-                src_key_padding_mask = input_gene_ids.eq(vocab[pad_token])
-                idx=np.arange(id,id+len(input_gene_ids))
-                id=id+len(input_gene_ids)
-                start_time=time.time()
-                out= self.model.inference(input_gene_ids,input_values,src_key_padding_mask)
-                end_time=time.time()
-                time_counter=time_counter+(end_time-start_time)
-                y_pred.append(out.cpu())
-                y_true.append(celltype_labels.cpu())
-
-
-            y_pred = torch.cat(y_pred, dim=0)
-            y_true = torch.cat(y_true, dim=0)
-            metrics = compute_metrics(y_pred, y_true)
-            
-            if data_portion==2:
-                self.y_test_preds= y_pred.max(1)[1].numpy()
-                self.y_test_true= y_true.numpy()
-          
-            return metrics
     
-    """
+
+
+
     
     #Currently, I dont use it
     def update_cls(self):

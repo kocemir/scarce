@@ -127,8 +127,8 @@ if __name__=="__main__":
         wd=0.00005,
         patience=10,
         max_epochs=50, #25, 3000   # if batch_size is 32, then use max_epochs as 50
-        encoder_lr=0.00001, train_fraction=0.05, # default 1.0
-        encoder_p=0.2, batch_size=32 #16 or 32 (used  and reported for the first two paths of ms, then gave up)
+        encoder_lr=0.00001, train_fraction=0.5, # default 1.0
+        encoder_p=0.2, batch_size=8 #16 or 32 (used  and reported for the first two paths of ms, then gave up)
 
     )
     
@@ -180,7 +180,7 @@ if __name__=="__main__":
     ##################################################################################
    
     
-    #### Take results from the save transformer model
+    #### Take results from thed save transformer model. Do not afraid, I only look up the seed list
     file_path = os.path.join(f"/auto/k2/aykut3/scgpt/scGPT/scgpt_gcn/save_scgcn/scgpt_{dataset_name}_median/results.pkl")
     with open(file_path, "rb") as file:
             results= pickle.load(file)   
@@ -201,7 +201,7 @@ if __name__=="__main__":
         for i, seed in enumerate(seed_list[0:3]):
                 if seed==15:
                      seed=0
-                set_seeds(seed+42)
+                set_seeds(seed)
                 trainer,model=run_type(dataset_name= dataset_name, model_type=type_name, path=pt, params=params)
                 
                 d["test_acc"].append(100*trainer.metrics["test"]["acc"])
@@ -211,6 +211,17 @@ if __name__=="__main__":
                 d["avg_epoch_time"].append(trainer.avg_epoch_time)
                 d["test_preds"].append(trainer.y_test_preds) # these are numpyed values
                 d["test_true"].append(trainer.y_test_true) # these are numpyed values  ( In all of the runs, I mistakenly wrote trainer.y_test_preds here, but do not worry. You can use results["labels"] as trainer.y_test_true
+
+                best_test = trainer.metrics.get("best_test")
+                if best_test is not None:
+                    d["best_test_acc"].append(100*best_test["acc"])
+                    d["best_test_f1"].append(100*best_test["macro"])
+                    d["best_test_precision"].append(100*best_test["precision"])
+                    d["best_test_recall"].append(100*best_test["recall"])
+                    d["best_test_epoch"].append(trainer.metrics.get("best_test_epoch", -1))
+                    d["best_test_preds"].append(getattr(trainer, "best_y_test_preds", None))
+                    d["best_test_true"].append(getattr(trainer, "best_y_test_true", None))
+                    print(f"[seed {seed}] Best Test Acc: {100*best_test['acc']:.3f} @ epoch {trainer.metrics.get('best_test_epoch', -1)}")
                  
 
                 load_dir= save_dir+"/"+f"{dataset_name}/{type_name}/{pt}" 
@@ -224,7 +235,7 @@ if __name__=="__main__":
                 #If you would like to save model results, uncomment here!
                 
                 
-                result_dir= os.path.join(load_dir, f"dname_{dataset_name}_path_[{pt}]_type_{type_name}_seedid_{str(i)}_seed_{seed}_portion_{params.train_fraction}")
+                result_dir= os.path.join(load_dir, f"dname_{dataset_name}_path_[{pt}]_type_{type_name}_seedid_{str(i)}_seed_{seed}_portion_{params.train_fraction}", f"portion_{params.train_fraction*100}")
                 # Save dictionary using pickle
                 with open(result_dir, 'wb') as pickle_file:
                     pickle.dump(d, pickle_file)
@@ -242,6 +253,13 @@ if __name__=="__main__":
         print("F1", sum(d["test_f1"])/len(d["test_f1"]))
         print("Accuracy STD", np.std(np.array(d["test_acc"])))
         print("F1 STD", np.std(np.array(d["test_f1"])))
+
+        if len(d["best_test_acc"]) > 0:
+            print("Best Accuracy", sum(d["best_test_acc"])/len(d["best_test_acc"]))
+            print("Best F1", sum(d["best_test_f1"])/len(d["best_test_f1"]))
+            print("Best Accuracy STD", np.std(np.array(d["best_test_acc"])))
+            print("Best F1 STD", np.std(np.array(d["best_test_f1"])))
+            print("Best Epochs", d["best_test_epoch"])
 
 
 

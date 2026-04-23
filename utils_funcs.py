@@ -234,7 +234,13 @@ def results_dict():
         "test_preds":[],
         "test_true":[],
         "avg_epoch_time": [],
-
+        "best_test_acc": [],
+        "best_test_recall": [],
+        "best_test_precision": [],
+        "best_test_f1": [],
+        "best_test_epoch": [],
+        "best_test_preds": [],
+        "best_test_true": [],
     }
 
 
