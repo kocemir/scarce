@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pt
+*.pth
+save/
+data/
+save_*/
+processed_data/
+scarce_merged/
+vocab.json
+*.h5ad
+.ipynb_checkpoints/
+*.log
