@@ -197,6 +197,16 @@ if __name__=="__main__":
         d["path"].append(pt)
         d["type"].append(type_name)
         d["dataset"].append(dataset_name)
+
+
+        load_dir= save_dir+"/"+f"{dataset_name}/{type_name}/{pt}/portion_{int(params.train_fraction*100)}/" 
+        if not os.path.exists(path=load_dir):
+                    load_dir= os.path.join(cur_dir, load_dir)
+                    os.makedirs(load_dir)
+                    print(f"Created directory: {load_dir}.")
+        else:
+                    print(f"{load_dir} is already created.")
+            
        
         for i, seed in enumerate(seed_list[0:3]):
                 if seed==15:
@@ -224,14 +234,7 @@ if __name__=="__main__":
                     print(f"[seed {seed}] Best Test Acc: {100*best_test['acc']:.3f} @ epoch {trainer.metrics.get('best_test_epoch', -1)}")
                  
 
-                load_dir= save_dir+"/"+f"{dataset_name}/{type_name}/{pt}" 
-                if not os.path.exists(path=load_dir):
-                    load_dir= os.path.join(cur_dir, load_dir)
-                    os.makedirs(load_dir)
-                    print(f"Created directory: {load_dir}.")
-                else:
-                    print(f"{load_dir} is already created.")
-            
+
                 #If you would like to save model results, uncomment here!
                 
                 
