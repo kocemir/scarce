@@ -66,7 +66,7 @@ def run_type4(dataset_name: str, model_type: str, path: str, params: SearchParam
     gcn_config = Type12Config(fan_in=fan_in, fan_mid=params.fan_mid, fan_out=n_class, dropout=params.gcn_p)
     encoder_config = EncoderConfig(model_name="scgpt", dataset_name=dataset_name, n_class=n_class, CLS=True, dropout=params.encoder_p)
     config = Type4Config(type12_config=gcn_config, encoder_config=encoder_config, lmbd=params.lmbd,batch_size=params.batch_size)
-    model = Type4(config).to(device)
+    model = Type4(config, path).to(device)
     loaders= get_loaders(dataset_name, config.batch_size)
     
   
@@ -115,7 +115,7 @@ if __name__=="__main__":
     type_name="type4"
 
     path_list= ["GG-CG","GC-CG","CG-CC","CC-CC"]
-    path_list= ["CC-CC"]
+    path_list= ["CG-CC"]
  
     
     
@@ -127,7 +127,7 @@ if __name__=="__main__":
         wd=0.00005,
         patience=10,
         max_epochs=50, #25, 3000   # if batch_size is 32, then use max_epochs as 50
-        encoder_lr=0.00001, train_fraction=0.5, # default 1.0
+        encoder_lr=0.00001, train_fraction=0.05, # default 1.0
         encoder_p=0.2, batch_size=8 #16 or 32 (used  and reported for the first two paths of ms, then gave up)
 
     )

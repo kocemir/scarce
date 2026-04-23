@@ -117,8 +117,9 @@ class Type4Trainer:
         self.input = t_input
         self.cls_update= update_cls
         self.train_fraction = train_fraction
-
-        self.input.x = torch.zeros_like(self.input.x)
+        
+        if self.cls_update: # Yani CC-CC veya GC-CG ise, input.x'i sıfırla.
+           self.input.x = torch.zeros_like(self.input.x)
 
         
 

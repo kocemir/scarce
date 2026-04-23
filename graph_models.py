@@ -111,30 +111,42 @@ class Type3(nn.Module):
 
 class Type4(nn.Module):
 
-    def __init__(self, config: Type4Config):
+    def __init__(self, config: Type4Config, path: str):
         super().__init__()
         self.c = config
         self.encoder =  scGPTForAnnotation(self.c.encoder_config)
-        self.gcn = Type12(self.c.type12_config) 
+        self.gcn = Type12(self.c.type12_config)
+        self.path = path
 
      
     def forward(self, x: torch.Tensor, A_s: List[torch.Tensor], src, values, src_key_padding_mask, idx):
-        encoder = self.encoder(src, values, src_key_padding_mask, batch_labels=None, cls=self.c.encoder_config.CLS)
-        encoder_preds = encoder["cls_output"]
-        cell_emb = encoder["cell_emb"]
+        
 
+        
+        if self.path == "GG-CG" or self.path == "CG-CC":
+        
+           encoder = self.encoder(src, values, src_key_padding_mask, batch_labels=None, cls=self.c.encoder_config.CLS)
+           encoder_preds = encoder["cls_output"]
+           gcn_pred = self.gcn(x, A_s)[idx]
+            
+        
+        
+        elif self.path == "CC-CC" or self.path == "GC-CG":
+           encoder = self.encoder(src, values, src_key_padding_mask, batch_labels=None, cls=self.c.encoder_config.CLS)
+           encoder_preds = encoder["cls_output"]     
+           cell_emb = encoder["cell_emb"]
         # Persist current batch's values into buffer (detached, no grad)
-        with torch.no_grad():
-            x[idx] = cell_emb.detach()
+           with torch.no_grad():
+             x[idx] = cell_emb.detach()
+   
+           x_live = x.detach().clone()
+           x_live[idx] = cell_emb  # live grad only for current batch
+           gcn_pred = self.gcn(x_live, A_s)[idx]
 
-        # Build live input: previous batches' values from buffer (detached),
-        # current batch gets live cell_emb (with grad)
-        x_live = x.detach().clone()
-        x_live[idx] = cell_emb  # live grad only for current batch
-
-        gcn_pred = self.gcn(x_live, A_s)[idx]
         pred = gcn_pred * self.c.lmbd + F.log_softmax(encoder_preds, dim=1) * (1 - self.c.lmbd)
         return pred
+    
+    
     
     def inference(self, src, values, src_key_padding_mask):
          encoder_preds = self.encoder(src, values, src_key_padding_mask, batch_labels=None, cls=self.c.encoder_config.CLS)["cls_output"]
