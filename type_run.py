@@ -115,7 +115,7 @@ if __name__=="__main__":
     type_name="type4"
 
     path_list= ["GG-CG","GC-CG","CG-CC","CC-CC"]
-    path_list= ["CG-CC"]
+    path_list= ["CC-CC"]
  
     
     
@@ -127,7 +127,7 @@ if __name__=="__main__":
         wd=0.00005,
         patience=10,
         max_epochs=50, #25, 3000   # if batch_size is 32, then use max_epochs as 50
-        encoder_lr=0.00001, train_fraction=0.05, # default 1.0
+       encoder_lr=0.00001, train_fraction=0.05, # default 1.0
         encoder_p=0.2, batch_size=8 #16 or 32 (used  and reported for the first two paths of ms, then gave up)
 
     )
@@ -208,7 +208,7 @@ if __name__=="__main__":
                     print(f"{load_dir} is already created.")
             
        
-        for i, seed in enumerate(seed_list[0:3]):
+        for i, seed in enumerate(seed_list[2:3]):
                 if seed==15:
                      seed=0
                 set_seeds(seed)
@@ -238,7 +238,7 @@ if __name__=="__main__":
                 #If you would like to save model results, uncomment here!
                 
                 
-                result_dir= os.path.join(load_dir, f"dname_{dataset_name}_path_[{pt}]_type_{type_name}_seedid_{str(i)}_seed_{seed}_portion_{params.train_fraction}", f"portion_{params.train_fraction*100}")
+                result_dir= os.path.join(load_dir, f"dname_{dataset_name}_path_[{pt}]_type_{type_name}_seedid_{str(i)}_seed_{seed}_portion_{params.train_fraction}")
                 # Save dictionary using pickle
                 with open(result_dir, 'wb') as pickle_file:
                     pickle.dump(d, pickle_file)
