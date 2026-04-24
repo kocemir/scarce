@@ -127,7 +127,7 @@ if __name__=="__main__":
         wd=0.00005,
         patience=10,
         max_epochs=50, #25, 3000   # if batch_size is 32, then use max_epochs as 50
-       encoder_lr=0.00001, train_fraction=0.05, # default 1.0
+        encoder_lr=0.00001, train_fraction=0.5, # default 1.0
         encoder_p=0.2, batch_size=8 #16 or 32 (used  and reported for the first two paths of ms, then gave up)
 
     )
@@ -208,7 +208,7 @@ if __name__=="__main__":
                     print(f"{load_dir} is already created.")
             
        
-        for i, seed in enumerate(seed_list[2:3]):
+        for i, seed in enumerate(seed_list[0:3]):
                 if seed==15:
                      seed=0
                 set_seeds(seed)

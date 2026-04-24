@@ -7,14 +7,16 @@ cur_dir= os.getcwd()
 base_dir=os.path.join(cur_dir,"scarce_merged")
 
 
+# Şunu belirteyim, şu anki kayıtlarda CC-CC için: portion_10'u çalıştırınca son dosyayı açtığında tek bir run için sonuç çıkıyor, sebebi ise benim runları parça parça toplarken son runda hepsini koymam. O yüzden sonradan tek run için çalıştırdığımız run (seed 22)
+
 type_name="type4"
 dataset_name="ms"
 
 path_list= ["GG-CG","GC-CG","CG-CC","CC-CC"]
 path_list= ["CC-CC"]
 
-portion_list = [5, 10, 20, 50, 100]
-portion_list = [5,10]
+#portion_list = [5, 10, 20, 50, 100]
+portion_list = [5]
 
 
 def load_and_process_results(base_dir, dataset_name, type_name, path_list, portion_list):
@@ -27,6 +29,7 @@ def load_and_process_results(base_dir, dataset_name, type_name, path_list, porti
         [path_list, portion_list], names=["path", "portion"]
     )
     df = pd.DataFrame(index=index, columns=columns)
+    acc_lists = {portion: {} for portion in portion_list}
 
     for pt in path_list:
         for portion in portion_list:
@@ -41,9 +44,11 @@ def load_and_process_results(base_dir, dataset_name, type_name, path_list, porti
             except IndexError:
                 print(f"[skip] no files in: {load_path}")
                 continue
-
+            print("********", final_results_file)
             with open(final_results_file, "rb") as f:
                 loaded_results = pickle.load(f)
+
+            acc_lists[portion][pt] = list(np.array(loaded_results['best_test_acc']))
 
             key = (pt, portion)
 
@@ -68,10 +73,16 @@ def load_and_process_results(base_dir, dataset_name, type_name, path_list, porti
             df.loc[key, 'best_test_epoch'] = np.mean(np.array(loaded_results['best_test_epoch']))
             df.loc[key, 'std_best_test_epoch'] = np.std(np.array(loaded_results['best_test_epoch']))
 
-    return df
+    return df, acc_lists
 
 
-df_results = load_and_process_results(base_dir, dataset_name, type_name, path_list, portion_list)
+df_results, acc_lists = load_and_process_results(base_dir, dataset_name, type_name, path_list, portion_list)
+
+print("\n=== Accuracy scores per portion ===")
+for portion, paths in acc_lists.items():
+    print(f"\nPortion {portion}:")
+    for pt, scores in paths.items():
+        print(f"  {pt}: {scores}")
 print("Best Mean Test Accuracy:",df_results["best_test_acc"])
 print("Best Mean Test F1:", df_results["best_test_f1"])
 print("Best Mean Test Precision:", df_results["best_test_precision"])

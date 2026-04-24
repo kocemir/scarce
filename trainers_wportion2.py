@@ -15,7 +15,7 @@ import json
 
 
 # Assuming the JSON file "vocab.json" is in the same directory as your Python script
-file_path = "/auto/k2/aykut3/scgpt/scGPT/scgpt_gcn/save/dev_ms-Apr27-14-44/vocab.json"
+file_path = "/auto/k2/aykut3/Yunus/scarce/scgpt_pretrained/scGPT_human/vocab.json"
 pad_token="<pad>"
 # Load the JSON file
 with open(file_path, "r") as file:
