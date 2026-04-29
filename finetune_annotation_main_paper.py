@@ -67,7 +67,7 @@ print("Imported all the required files")
 # Set the device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(device)
-torch.cuda.set_device(1)
+torch.cuda.set_device(0)
 
 
 
@@ -81,9 +81,9 @@ for r in range(_RUN_COUNT):
 
     hyperparameter_defaults = dict(
         seed=seed_numbers[r],
-        dataset_name="ms", #changed dataset here, originally "ms"
+        dataset_name="pbmc3k", #changed dataset here, originally "ms"
         do_train=True,
-        load_model="../save/scGPT_human",
+        load_model="./scgpt_pretrained/scGPT_human",
         mask_ratio=0.0,
         epochs=10,
         n_bins=51,
@@ -91,7 +91,7 @@ for r in range(_RUN_COUNT):
         ecs_thres=0.0, # Elastic cell similarity objective, 0.0 to 1.0, 0.0 to disable
         dab_weight=0.0,
         lr=1e-4,
-        batch_size=1,
+        batch_size=8,
         layer_size=128,
         nlayers=12,  # number of nn.TransformerEncoderLayer in nn.TransformerEncoder
         nhead=4,  # number of heads in nn.MultiheadAttention
@@ -302,6 +302,52 @@ for r in range(_RUN_COUNT):
         adata_test_raw = adata_test.copy()
         adata = adata.concatenate(adata_test, batch_key="str_batch")
         adata.obs["indices"]= np.arange(adata.obs.shape[0])
+    # -----------------------------------------------------------------------
+    # PBMC 3k dataset (downloaded automatically via scanpy, ~2,700 cells, 8 cell types)
+    # Cached at ~/.cache/scanpy/ after first download — no manual steps needed.
+    # -----------------------------------------------------------------------
+    if dataset_name == "pbmc3k":
+        print("Downloading / loading PBMC 3k dataset via scanpy (cached after first run)...")
+
+        # Raw UMI counts (~2,700 cells x 32,738 genes)
+        adata_full_raw = sc.datasets.pbmc3k()
+
+        # Processed version — used only to transfer Louvain cell type labels (8 types)
+        adata_full_proc = sc.datasets.pbmc3k_processed()
+
+        # The processed object drops ~60 low-quality cells, so intersect to keep only
+        # cells that have a valid cell-type label
+        common_cells = adata_full_raw.obs_names.intersection(adata_full_proc.obs_names)
+        adata_full = adata_full_raw[common_cells].copy()
+        adata_full.obs["celltype"] = adata_full_proc[common_cells].obs["louvain"].astype("category")
+
+        print(f"PBMC 3k — total cells after intersection: {adata_full.n_obs}")
+        print(f"Cell types ({adata_full.obs['celltype'].nunique()}): "
+            f"{list(adata_full.obs['celltype'].cat.categories)}")
+
+        # Stratified 80/20 train/test split so all 8 cell types appear in both splits
+        from sklearn.model_selection import train_test_split as tts
+        train_idx, test_idx = tts(
+            np.arange(adata_full.n_obs),
+            test_size=0.2,
+            random_state=42,
+            stratify=adata_full.obs["celltype"]
+        )
+
+        adata      = adata_full[train_idx].copy()
+        adata_test = adata_full[test_idx].copy()
+
+        adata.obs["batch_id"]      = adata.obs["str_batch"] = "0"
+        adata_test.obs["batch_id"] = adata_test.obs["str_batch"] = "1"
+
+        # raw UMI counts → preprocessor handles normalize_total + log1p
+        data_is_raw          = True
+        filter_gene_by_counts = False
+
+        adata_test_raw = adata_test.copy()
+        adata = adata.concatenate(adata_test, batch_key="str_batch")
+        adata.obs["indices"] = np.arange(adata.obs.shape[0])
+        
                     
     # make the batch category column
     batch_id_labels = adata.obs["str_batch"].astype("category").cat.codes.values

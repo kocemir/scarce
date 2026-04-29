@@ -10,13 +10,13 @@ base_dir=os.path.join(cur_dir,"scarce_merged")
 # Şunu belirteyim, şu anki kayıtlarda CC-CC için: portion_10'u çalıştırınca son dosyayı açtığında tek bir run için sonuç çıkıyor, sebebi ise benim runları parça parça toplarken son runda hepsini koymam. O yüzden sonradan tek run için çalıştırdığımız run (seed 22)
 
 type_name="type4"
-dataset_name="ms"
+dataset_name="myeloid"
 
 path_list= ["GG-CG","GC-CG","CG-CC","CC-CC"]
-path_list= ["CC-CC"]
+path_list= ["CG-CC"]
 
 #portion_list = [5, 10, 20, 50, 100]
-portion_list = [5]
+portion_list = [5,10,20,50]
 
 
 def load_and_process_results(base_dir, dataset_name, type_name, path_list, portion_list):

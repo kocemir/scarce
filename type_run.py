@@ -115,7 +115,7 @@ if __name__=="__main__":
     type_name="type4"
 
     path_list= ["GG-CG","GC-CG","CG-CC","CC-CC"]
-    path_list= ["CC-CC"]
+    path_list= ["GC-CG"]
  
     
     
@@ -151,7 +151,7 @@ if __name__=="__main__":
         adata.obs["indices"]= np.arange(adata.obs.shape[0])
     
     if dataset_name == "pancreas": #RB
-        data_dir = Path("../data/pancreas")
+        data_dir = Path("./data/pancreas")
         adata = sc.read(data_dir / "demo_train.h5ad")
         adata_test = sc.read(data_dir / "demo_test.h5ad")
         adata.obs["celltype"] = adata.obs["Celltype"].astype("category")
@@ -165,7 +165,7 @@ if __name__=="__main__":
         adata.obs["indices"]= np.arange(adata.obs.shape[0])
 
     if dataset_name == "myeloid":
-        data_dir = Path("../data/mye/")
+        data_dir = Path("./data/mye/")
         adata = sc.read(data_dir / "reference_adata.h5ad")
         adata_test = sc.read(data_dir / "query_adata.h5ad")
         adata.obs["celltype"] = adata.obs["cell_type"].astype("category")
@@ -208,7 +208,7 @@ if __name__=="__main__":
                     print(f"{load_dir} is already created.")
             
        
-        for i, seed in enumerate(seed_list[0:3]):
+        for i, seed in enumerate(seed_list[2:5]):
                 if seed==15:
                      seed=0
                 set_seeds(seed)

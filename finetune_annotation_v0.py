@@ -288,7 +288,54 @@ if dataset_name == "pancreas": #RB
     adata_test_raw = adata_test.copy()
     adata = adata.concatenate(adata_test, batch_key="str_batch")
     adata.obs["indices"]= np.arange(adata.obs.shape[0])
-                
+
+
+# -----------------------------------------------------------------------
+# PBMC 3k dataset (downloaded automatically via scanpy, ~2,700 cells, 8 cell types)
+# Cached at ~/.cache/scanpy/ after first download — no manual steps needed.
+# -----------------------------------------------------------------------
+if dataset_name == "pbmc3k":
+    print("Downloading / loading PBMC 3k dataset via scanpy (cached after first run)...")
+
+    # Raw UMI counts (~2,700 cells x 32,738 genes)
+    adata_full_raw = sc.datasets.pbmc3k()
+
+    # Processed version — used only to transfer Louvain cell type labels (8 types)
+    adata_full_proc = sc.datasets.pbmc3k_processed()
+
+    # The processed object drops ~60 low-quality cells, so intersect to keep only
+    # cells that have a valid cell-type label
+    common_cells = adata_full_raw.obs_names.intersection(adata_full_proc.obs_names)
+    adata_full = adata_full_raw[common_cells].copy()
+    adata_full.obs["celltype"] = adata_full_proc[common_cells].obs["louvain"].astype("category")
+
+    print(f"PBMC 3k — total cells after intersection: {adata_full.n_obs}")
+    print(f"Cell types ({adata_full.obs['celltype'].nunique()}): "
+          f"{list(adata_full.obs['celltype'].cat.categories)}")
+
+    # Stratified 80/20 train/test split so all 8 cell types appear in both splits
+    from sklearn.model_selection import train_test_split as tts
+    train_idx, test_idx = tts(
+        np.arange(adata_full.n_obs),
+        test_size=0.2,
+        random_state=42,
+        stratify=adata_full.obs["celltype"]
+    )
+
+    adata      = adata_full[train_idx].copy()
+    adata_test = adata_full[test_idx].copy()
+
+    adata.obs["batch_id"]      = adata.obs["str_batch"] = "0"
+    adata_test.obs["batch_id"] = adata_test.obs["str_batch"] = "1"
+
+    # raw UMI counts → preprocessor handles normalize_total + log1p
+    data_is_raw          = True
+    filter_gene_by_counts = False
+
+    adata_test_raw = adata_test.copy()
+    adata = adata.concatenate(adata_test, batch_key="str_batch")
+    adata.obs["indices"] = np.arange(adata.obs.shape[0])
+# -----------------------------------------------------------------------
 # make the batch category column
 batch_id_labels = adata.obs["str_batch"].astype("category").cat.codes.values
 adata.obs["batch_id"] = batch_id_labels
