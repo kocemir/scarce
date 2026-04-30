@@ -57,7 +57,7 @@ warnings.filterwarnings('ignore')
 
 
 seed_numbers=  [random.randint(0,42) for _ in range(10)] # seed numbers, generated randomly
-_RUN_COUNT=10
+_RUN_COUNT=3
 
 # ## Step1: Specify hyper-parameter setup for cell-type annotation task
 # Listed below are some hyper-parameter recommendations for the cell-type task. Note that the CLS objective is on to facilitate cell-type classification.
@@ -85,7 +85,7 @@ for r in range(_RUN_COUNT):
         do_train=True,
         load_model="./scgpt_pretrained/scGPT_human",
         mask_ratio=0.0,
-        epochs=10,
+        epochs=20,
         n_bins=51,
         MVC=False, # Masked value prediction for cell embedding
         ecs_thres=0.0, # Elastic cell similarity objective, 0.0 to 1.0, 0.0 to disable
@@ -104,6 +104,13 @@ for r in range(_RUN_COUNT):
         include_zero_gene = True, #False, ##WAS FALSE ORIGINALLY in the paper, we used True in the ablation study
         freeze = False, #freeze
         DSBN = False,  # Domain-spec batchnorm
+        # PBMC3k-only data knobs (kept matching finetune_annotation_v0_copy.py).
+        # Set n_top_hvg_genes=0 to disable joint HVG selection.
+        n_top_hvg_genes=3000,
+        # Use this %% of the training split (after train/val split) for fine-tuning.
+        train_data_pct=100,
+        # Deterministic train/val split seed for pbmc3k (other datasets keep the original behavior).
+        train_val_split_seed=0,
     )
 
 
@@ -404,6 +411,14 @@ for r in range(_RUN_COUNT):
     # In[ ]:
 
 
+    # PBMC3k: select top HVGs once on concatenated train+test so both splits share genes.
+    n_hvg_cfg = int(getattr(config, "n_top_hvg_genes", 0) or 0)
+    use_joint_hvg = dataset_name == "pbmc3k" and n_hvg_cfg > 0
+    n_hvg = min(n_hvg_cfg, adata.n_vars) if use_joint_hvg else 0
+    if use_joint_hvg and n_hvg < 2:
+        use_joint_hvg = False
+        n_hvg = 0
+
     # set up the preprocessor, use the args to config the workflow
     preprocessor = Preprocessor(
         use_key="X",  # the key in adata.layers to use as raw data
@@ -413,18 +428,28 @@ for r in range(_RUN_COUNT):
         result_normed_key="X_normed",  # the key in adata.layers to store the normalized data
         log1p=data_is_raw,  # 4. whether to log1p the normalized data
         result_log1p_key="X_log1p",
-        subset_hvg=False,  # 5. whether to subset the raw data to highly variable genes
+        subset_hvg=n_hvg if use_joint_hvg else False,  # 5. whether to subset the raw data to highly variable genes
         hvg_flavor="seurat_v3" if data_is_raw else "cell_ranger",
         binning=n_bins,  # 6. whether to bin the raw data and to what number of bins
         result_binned_key="X_binned",  # the key in adata.layers to store the binned data
     )
 
 
-    adata_test = adata[adata.obs["str_batch"] == "1"]
-    adata = adata[adata.obs["str_batch"] == "0"]
+    if use_joint_hvg:
+        logger.info(
+            f"PBMC3k: joint highly variable gene selection (top {n_hvg}), "
+            "then split train/test."
+        )
+        preprocessor(adata, batch_key=None)
+        print(f"PBMC3k: genes after HVG subset: {adata.n_vars}")
+        adata_test = adata[adata.obs["str_batch"] == "1"]
+        adata = adata[adata.obs["str_batch"] == "0"]
+    else:
+        adata_test = adata[adata.obs["str_batch"] == "1"]
+        adata = adata[adata.obs["str_batch"] == "0"]
 
-    preprocessor(adata, batch_key=None)
-    preprocessor(adata_test, batch_key=None)
+        preprocessor(adata, batch_key=None)
+        preprocessor(adata_test, batch_key=None)
 
 
 
@@ -492,7 +517,12 @@ for r in range(_RUN_COUNT):
         valid_indices
         
     ) = train_test_split(
-        all_counts, celltypes_labels, batch_ids, train_valid_cell_indices, test_size=0.1, shuffle=True, random_state=random.randint(0, 42)
+        all_counts, celltypes_labels, batch_ids, train_valid_cell_indices, test_size=0.1, shuffle=True,
+        random_state=(
+            int(getattr(config, "train_val_split_seed", 0))
+            if dataset_name == "pbmc3k"
+            else random.randint(0, 42)
+        ),
     )
 
 
@@ -545,6 +575,38 @@ for r in range(_RUN_COUNT):
         f"valid set number of samples: {tokenized_valid['genes'].shape[0]}, "
         f"\n\t feature length: {tokenized_valid['genes'].shape[1]}"
     )
+
+    # PBMC3k: keep ~train_data_pct% of the training pool, stratified per cell type.
+    # Validation set is left untouched. Reproducible via the per-run seed.
+    if dataset_name == "pbmc3k":
+        pct_tm = min(100, max(1, int(getattr(config, "train_data_pct", 100))))
+        if pct_tm < 100:
+            rng_pct = np.random.RandomState(int(config.seed))
+            y_full = np.asarray(train_celltype_labels)
+            parts = []
+            for lbl in np.unique(y_full):
+                class_idx = np.flatnonzero(y_full == lbl)
+                nc = int(class_idx.shape[0])
+                # At least 1 cell per type when nc >= 1; otherwise approximate pct% per class.
+                k = min(nc, max(1, int(round(nc * pct_tm / 100.0))))
+                parts.append(rng_pct.choice(class_idx, size=k, replace=False))
+            idx_tm = np.concatenate(parts) if parts else np.array([], dtype=np.int64)
+            idx_tm.sort()
+
+            tokenized_train = {k: v[idx_tm] for k, v in tokenized_train.items()}
+            train_celltype_labels = np.asarray(train_celltype_labels)[idx_tm]
+            train_batch_labels = np.asarray(train_batch_labels)[idx_tm]
+            train_indices = np.asarray(train_indices)[idx_tm]
+            logger.info(
+                f"PBMC3k: using ~{pct_tm}% of training pool (>=1 cell/type) -> "
+                f"{len(idx_tm)} cells (val unchanged), rng={int(config.seed)}"
+            )
+            print(f"Training cells used: {tokenized_train['genes'].shape[0]} (subsample)")
+        else:
+            print(
+                f"PBMC3k: using 100% of training split: "
+                f"{tokenized_train['genes'].shape[0]} cells"
+            )
 
 
 

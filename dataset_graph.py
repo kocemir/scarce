@@ -103,7 +103,7 @@ def load_processed_dataset(dataset_name):
 
 if __name__ == "__main__":
       
-     for datasets in ["ms"]:#,"pancreas","myeloid"]: #["ms","pancreas","myeloid"]
+     for datasets in ["pbmc3k"]:#,"pancreas","myeloid"]: #["ms","pancreas","myeloid"]
          
 
         DATA_DIR = os.path.join("processed_data", datasets +"_train.pkl")
