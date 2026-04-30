@@ -1,205 +1,138 @@
-from pathlib import Path
-import pickle
+import os
 import re
-import torch
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
-from anndata import AnnData
+import pickle
+import numpy as np
+import pandas as pd
 import scanpy as sc
-import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-import os
-import numpy as np
+from pathlib import Path
 
-'''
-Used for visualization purposes: Scatter plots for predicted and annotated values
-'''
+# --- Configuration ---
+DATASET_NAME = "ms"
+SAVE_PATH = Path(f"/auto/k2/aykut3/scgpt/scGPT/scgpt_gcn/save_scgcn/scgpt_{DATASET_NAME}_median/results.pkl")
+PLOT_DATA_PATH = Path("/auto/k2/aykut3/Yunus/scarce/scarce_merged/ms/type4/GC-CG/portion_5/dname_ms_path_[GC-CG]_type_type4_seedid_2_seed_31_portion_0.05")
 
-
-dataset_name = "ms"
-
-##################################################################################
-if dataset_name == "ms":
-    data_dir = Path("./data/ms")
-    adata = sc.read(data_dir / "c_data.h5ad")
-    adata_test = sc.read(data_dir / "filtered_ms_adata.h5ad")
-    adata.obs["celltype"] = adata.obs["Factor Value[inferred cell type - authors labels]"].astype("category")
-    adata_test.obs["celltype"] = adata_test.obs["Factor Value[inferred cell type - authors labels]"].astype("category")
-    adata.obs["batch_id"] = adata.obs["str_batch"] = "0"
-    adata_test.obs["batch_id"] = adata_test.obs["str_batch"] = "1"
-    adata.var.set_index(adata.var["gene_name"], inplace=True)
-    adata_test.var.set_index(adata.var["gene_name"], inplace=True)
-    data_is_raw = False
-    filter_gene_by_counts = False
-    adata_test_raw = adata_test.copy()
-    adata = adata.concatenate(adata_test, batch_key="str_batch")
-    adata.obs["indices"] = np.arange(adata.obs.shape[0])
-
-if dataset_name == "pancreas":
-    data_dir = Path("./data/pancreas")
-    adata = sc.read(data_dir / "demo_train.h5ad")
-    adata_test = sc.read(data_dir / "demo_test.h5ad")
-    adata.obs["celltype"] = adata.obs["Celltype"].astype("category")
-    adata_test.obs["celltype"] = adata_test.obs["Celltype"].astype("category")
-    adata.obs["batch_id"] = adata.obs["str_batch"] = "0"
-    adata_test.obs["batch_id"] = adata_test.obs["str_batch"] = "1"
-    data_is_raw = False
-    filter_gene_by_counts = False
-    adata_test_raw = adata_test.copy()
-    adata = adata.concatenate(adata_test, batch_key="str_batch")
-    adata.obs["indices"] = np.arange(adata.obs.shape[0])
-
-if dataset_name == "myeloid":
-    data_dir = Path("./data/mye/")
-    adata = sc.read(data_dir / "reference_adata.h5ad")
-    adata_test = sc.read(data_dir / "query_adata.h5ad")
-    adata.obs["celltype"] = adata.obs["cell_type"].astype("category")
-    adata_test.obs["celltype"] = adata_test.obs["cell_type"].astype("category")
-    adata.obs["batch_id"] = adata.obs["str_batch"] = "0"
-    adata_test.obs["batch_id"] = adata_test.obs["str_batch"] = "1"
-    adata_test_raw = adata_test.copy()
-    data_is_raw = False
-    filter_gene_by_counts = False
-    adata = adata.concatenate(adata_test, batch_key="str_batch")
-    adata.obs["indices"] = np.arange(adata.obs.shape[0])
-##################################################################################
-
-
-# Take results from the saved transformer model
-file_path = os.path.join(f"/auto/k2/aykut3/scgpt/scGPT/scgpt_gcn/save_scgcn/scgpt_{dataset_name}_median/results.pkl")
-with open(file_path, "rb") as file:
-    results = pickle.load(file)
-seed_list = results["seed_numbers"]
-
-
-path_to_plot = "/auto/k2/aykut3/Yunus/scarce/scarce_merged/ms/type4/GC-CG/portion_5/dname_ms_path_[GC-CG]_type_type4_seedid_2_seed_31_portion_0.05"
-
-with open(path_to_plot, "rb") as f:
-    loaded_results = pickle.load(f)
-
-y_test_preds = loaded_results["test_preds"][-1]
-
-
-# Map prediction integer ids to human-readable cell type names
-id2type = results["id_maps"]
-print(id2type)
-
-
-def _clean_label(s):
-    """Strip '?' characters and collapse extra whitespace from a cell-type name."""
+def clean_label(s):
     return re.sub(r"\s+", " ", str(s).replace("?", "")).strip()
 
-
-id2type = {k: _clean_label(v) for k, v in id2type.items()}
-adata_test_raw.obs["predictions"] = [id2type[p] for p in y_test_preds]
-adata_test_raw.obs["celltype"] = adata_test_raw.obs["celltype"].astype(str).map(_clean_label)
-
-all_categories = sorted(
-    set(adata_test_raw.obs["celltype"].astype(str).unique())
-    | set(adata_test_raw.obs["predictions"].astype(str).unique())
-)
-for _col in ("celltype", "predictions"):
-    adata_test_raw.obs[_col] = (
-        adata_test_raw.obs[_col].astype(str).astype("category")
-        .cat.set_categories(all_categories)
-    )
-
-try:
-    from scanpy.plotting import palettes as _sc_palettes
-    if len(all_categories) <= 20:
-        _base_colors = list(_sc_palettes.default_20)
-    elif len(all_categories) <= 28:
-        _base_colors = list(_sc_palettes.default_28)
+def load_and_preprocess_data(dataset):
+    data_dir = Path(f"./data/{dataset}")
+    if dataset == "ms":
+        adata = sc.read(data_dir / "c_data.h5ad")
+        adata_test = sc.read(data_dir / "filtered_ms_adata.h5ad")
+        adata.var.set_index(adata.var["gene_name"], inplace=True)
+        adata_test.var.set_index(adata.var["gene_name"], inplace=True)
+        obs_col = "Factor Value[inferred cell type - authors labels]"
+    elif dataset == "pancreas":
+        adata = sc.read(data_dir / "demo_train.h5ad")
+        adata_test = sc.read(data_dir / "demo_test.h5ad")
+        obs_col = "Celltype"
     else:
-        _base_colors = list(_sc_palettes.default_102)
-except Exception:
-    _base_colors = list(plt.get_cmap("tab20").colors) + list(plt.get_cmap("tab20b").colors)
+        adata_test = sc.read(data_dir / "query_adata.h5ad")
+        obs_col = "cell_type"
 
-palette_ = {c: _base_colors[i % len(_base_colors)] for i, c in enumerate(all_categories)}
+    adata_test.obs["celltype"] = adata_test.obs[obs_col].astype(str).apply(clean_label)
+    return adata_test.copy()
 
+def plot_results(adata_viz, results_dict, plot_results_dict, dataset_name):
+    # 1. Map Predictions
+    id2type = {k: clean_label(v) for k, v in results_dict["id_maps"].items()}
+    y_preds = plot_results_dict["test_preds"][-1]
+    adata_viz.obs["predictions"] = [id2type[p] for p in y_preds]
 
-# --------------------------------------------------------------------------- #
-# Publication-quality side-by-side UMAP: ground truth vs. predicted cell type
-# --------------------------------------------------------------------------- #
-n_cells = adata_test_raw.n_obs
-# Bigger, more visible markers
-marker_size = max(70, min(180, 400000 / max(n_cells, 1)))
+    # 2. Categories and Palette
+    all_cats = sorted(set(adata_viz.obs["celltype"]) | set(adata_viz.obs["predictions"]))
+    adata_viz.obs["celltype"] = pd.Categorical(adata_viz.obs["celltype"], categories=all_cats)
+    adata_viz.obs["predictions"] = pd.Categorical(adata_viz.obs["predictions"], categories=all_cats)
+    
+    n_cats = len(all_cats)
+    if n_cats <= 10:
+        palette = list(plt.get_cmap("tab10").colors)
+    elif n_cats <= 20:
+        palette = list(plt.get_cmap("tab20").colors)
+    else:
+        palette = (
+            list(plt.get_cmap("tab20").colors)
+            + list(plt.get_cmap("tab20b").colors)
+            + list(plt.get_cmap("tab20c").colors)
+            + list(plt.get_cmap("Set3").colors)
+            + list(plt.get_cmap("Set2").colors)
+        )
+    color_map = {cat: palette[i % len(palette)] for i, cat in enumerate(all_cats)}
 
-_portion_match = re.search(r"portion_(\d+)", path_to_plot)
-portion_pct = int(_portion_match.group(1)) if _portion_match else 5
+    # 3. Setup Figure RC
+    rc_params = {
+        "figure.dpi": 200,
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Arial", "DejaVu Sans"],
+        "axes.linewidth": 4.0,  # Thick borders like image_e3f09d.jpg
+    }
 
-rc = {
-    "figure.dpi": 200,
-    "savefig.dpi": 600,
-    "font.family": "DejaVu Sans",
-    "font.size": 14,
-    "axes.labelsize": 14,
-    "axes.linewidth": 1.2,
-    "legend.frameon": False,
-}
+    with plt.rc_context(rc_params):
+        # Larger overall canvas while preserving page-friendly proportions.
+        fig, axes = plt.subplots(2, 1, figsize=(13.0, 17.0))
 
-with plt.rc_context(rc):
-    # Stacked layout (single column): two large panels, one on top of the other.
-    fig, axes = plt.subplots(2, 1, figsize=(10.0, 18.0), constrained_layout=False)
+        n_cells = adata_viz.n_obs
+        size = max(50, min(150, 300000 / max(n_cells, 1)))
 
-    common = dict(
-        palette=palette_,
-        show=False,
-        size=marker_size,
-        frameon=True,
-        legend_loc=None,
-        na_color="lightgray",
-    )
-    sc.pl.umap(adata_test_raw, color="celltype",    ax=axes[0], title="", **common)
-    sc.pl.umap(adata_test_raw, color="predictions", ax=axes[1], title="", **common)
+        plot_args = dict(palette=color_map, show=False, size=size, frameon=True, legend_loc=None)
 
-    panel_titles = ("Ground Truth", "Predicted")
-    for ax, t in zip(axes, panel_titles):
-        ax.set_title(t, fontsize=16, fontweight="bold", color="black", pad=8)
-        ax.set_xlabel("UMAP 1", fontsize=14, fontweight="bold")
-        ax.set_ylabel("UMAP 2", fontsize=14, fontweight="bold")
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
-        for side in ("top", "right", "bottom", "left"):
-            ax.spines[side].set_visible(True)
-            ax.spines[side].set_linewidth(3.0)
-            ax.spines[side].set_color("black")
-            ax.spines[side].set_zorder(10)
+        sc.pl.umap(adata_viz, color="celltype", ax=axes[0], title="", **plot_args)
+        sc.pl.umap(adata_viz, color="predictions", ax=axes[1], title="", **plot_args)
 
-    fig.suptitle(
-        f"Test Results for Training with {portion_pct}% Labeled Samples",
-        fontsize=18, fontweight="bold", y=0.985,
-    )
+        # 4. Axis labels and styling (sized for a single page).
+        titles = ["Ground Truth", "Predicted"]
+        for ax, title in zip(axes, titles):
+            ax.set_title(title, fontsize=24, fontweight="bold", pad=14)
+            ax.set_xlabel("UMAP 1", fontsize=20, fontweight="bold", labelpad=10)
+            ax.set_ylabel("UMAP 2", fontsize=20, fontweight="bold", labelpad=10)
+            ax.set_xticks([])
+            ax.set_yticks([])
 
-    # Larger legend markers and readable text
-    handles = [mpatches.Patch(facecolor=palette_[c], edgecolor="none", label=c)
-               for c in all_categories]
-    n_legend_cols = 2
-    legend = fig.legend(
-        handles=handles,
-        loc="lower center",
-        bbox_to_anchor=(0.5, -0.05),
-        ncol=n_legend_cols,
-        fontsize=28,
-        title="Cell Type",
-        title_fontsize=30,
-        handlelength=2.0,
-        handletextpad=1.0,
-        columnspacing=2.0,
-        borderaxespad=0.0,
-    )
-    for text in legend.get_texts():
-        text.set_fontweight("bold")
-    legend.get_title().set_fontweight("bold")
+            for spine in ax.spines.values():
+                spine.set_linewidth(2.5)
+                spine.set_edgecolor("black")
 
-    plt.subplots_adjust(left=0.06, right=0.98, top=0.94, bottom=0.10, hspace=0.18)
+        # 5. Global title.
+        portion_match = re.search(r"portion_(\d+)(?!\.)", str(PLOT_DATA_PATH))
+        pct = f"{int(portion_match.group(1))}%" if portion_match else "5%"
+        fig.suptitle(
+            f"Test Results for Training with {pct} Labeled Samples",
+            fontsize=28, fontweight="bold", y=0.985,
+        )
 
-    out_png = f"results_combined_{dataset_name}.png"
-    out_pdf = f"results_combined_{dataset_name}.pdf"
-    plt.savefig(out_png, dpi=400, bbox_inches="tight", facecolor="white")
-    plt.savefig(out_pdf, bbox_inches="tight", facecolor="white")
-    print(f"Saved: {out_png}")
-    print(f"Saved: {out_pdf}")
+        # 6. Legend below the panels with a clear buffer.
+        handles = [mpatches.Patch(color=color_map[c], label=c) for c in all_cats]
 
-plt.show()
+        legend = fig.legend(
+            handles=handles,
+            loc="upper center",
+            bbox_to_anchor=(0.5, 0.15),
+            ncol=2,
+            fontsize=19,
+            title="Cell Type",
+            title_fontsize=21,
+            handlelength=0.72,
+            handleheight=0.42,
+            handletextpad=0.38,
+            columnspacing=0.95,
+            frameon=False,
+        )
+        for text in legend.get_texts():
+            text.set_fontweight("bold")
+        legend.get_title().set_fontweight("bold")
+
+        # Layout: leave room for suptitle on top and legend on the bottom.
+        plt.subplots_adjust(top=0.93, bottom=0.20, hspace=0.22, left=0.08, right=0.98)
+
+        out_name = f"final_expanded_{dataset_name}.png"
+        plt.savefig(out_name, bbox_inches="tight", dpi=300, facecolor="white")
+        print(f"Success! Figure saved to {out_name}")
+        plt.show()
+
+if __name__ == "__main__":
+    with open(SAVE_PATH, "rb") as f: meta_results = pickle.load(f)
+    with open(PLOT_DATA_PATH, "rb") as f: prediction_results = pickle.load(f)
+    test_adata = load_and_preprocess_data(DATASET_NAME)
+    plot_results(test_adata, meta_results, prediction_results, DATASET_NAME)
