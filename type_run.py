@@ -111,11 +111,11 @@ if __name__=="__main__":
    
    
 
-    dataset_name="ms"
+    dataset_name="pbmc3k"
     type_name="type4"
 
     path_list= ["GG-CG","GC-CG","CG-CC","CC-CC"]
-    path_list= ["GC-CG"]
+    path_list= ["CC-CC"]
  
     
     
@@ -208,7 +208,7 @@ if __name__=="__main__":
                     print(f"{load_dir} is already created.")
             
        
-        for i, seed in enumerate(seed_list[2:5]):
+        for i, seed in enumerate(seed_list[0:3]):
                 if seed==15:
                      seed=0
                 set_seeds(seed)

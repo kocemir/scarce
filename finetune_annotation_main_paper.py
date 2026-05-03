@@ -56,7 +56,7 @@ os.environ["KMP_WARNINGS"] = "off"
 warnings.filterwarnings('ignore')
 
 
-seed_numbers=  [random.randint(0,42) for _ in range(10)] # seed numbers, generated randomly
+seed_numbers=  [random.randint(0,42) for _ in range(3)] # seed numbers, generated randomly
 _RUN_COUNT=3
 
 # ## Step1: Specify hyper-parameter setup for cell-type annotation task
@@ -85,7 +85,7 @@ for r in range(_RUN_COUNT):
         do_train=True,
         load_model="./scgpt_pretrained/scGPT_human",
         mask_ratio=0.0,
-        epochs=20,
+        epochs=1,
         n_bins=51,
         MVC=False, # Masked value prediction for cell embedding
         ecs_thres=0.0, # Elastic cell similarity objective, 0.0 to 1.0, 0.0 to disable
@@ -327,6 +327,7 @@ for r in range(_RUN_COUNT):
         common_cells = adata_full_raw.obs_names.intersection(adata_full_proc.obs_names)
         adata_full = adata_full_raw[common_cells].copy()
         adata_full.obs["celltype"] = adata_full_proc[common_cells].obs["louvain"].astype("category")
+        adata_full.obsm["X_umap"] = adata_full_proc[common_cells].obsm["X_umap"].copy()
 
         print(f"PBMC 3k — total cells after intersection: {adata_full.n_obs}")
         print(f"Cell types ({adata_full.obs['celltype'].nunique()}): "

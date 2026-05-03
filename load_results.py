@@ -4,16 +4,16 @@ import pandas as pd
 import numpy as np
 
 cur_dir= os.getcwd()
-base_dir=os.path.join(cur_dir,"scarce_merged")
+base_dir=os.path.join(cur_dir,"scarce_lambda")
 
 
 # Şunu belirteyim, şu anki kayıtlarda CC-CC için: portion_10'u çalıştırınca son dosyayı açtığında tek bir run için sonuç çıkıyor, sebebi ise benim runları parça parça toplarken son runda hepsini koymam. O yüzden sonradan tek run için çalıştırdığımız run (seed 22)
 
 type_name="type4"
-dataset_name="myeloid"
+dataset_name="pbmc3k"
 
 path_list= ["GG-CG","GC-CG","CG-CC","CC-CC"]
-path_list= ["CG-CC"]
+path_list= ["GC-CG"]
 
 #portion_list = [5, 10, 20, 50, 100]
 portion_list = [5,10,20,50]
